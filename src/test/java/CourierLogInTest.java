@@ -1,154 +1,113 @@
+import courier.Courier;
+import courier.CourierApi;
+import io.qameta.allure.Description;
+import io.qameta.allure.junit4.DisplayName;
 import io.restassured.RestAssured;
 import io.restassured.response.Response;
-import org.junit.Before;
-import org.junit.After;
+import org.junit.BeforeClass;
+import org.junit.AfterClass;
 import org.junit.Test;
+import org.apache.commons.lang3.RandomStringUtils;
+import static org.apache.http.HttpStatus.*;
 
-import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.*;
 public class CourierLogInTest {
 
     public static final String SCOOTER_SERVICE_URI = "https://qa-scooter.praktikum-services.ru/";
+    private static final String LOGIN = "ninja"+RandomStringUtils.randomAlphabetic(5);
+    private static final String PASSWORD = "1234";
+    private static final String FIRSTNAME = "saske";
+    public static final Courier COURIER = new Courier(LOGIN, PASSWORD, FIRSTNAME);
+    private static String id;
 
-    public static final Courier COURIER = new Courier("ninjaWR12389", "1234", "saske");
 
-
-    @Before
-    public void setUp() {
+    @BeforeClass
+    public static void setUp() {
         RestAssured.baseURI = SCOOTER_SERVICE_URI;
-        given().header("Content-type", "application/json")
-                .and()
-                .body(COURIER.getFullJson())
-                .when()
-                .post("/api/v1/courier")
-                .then().statusCode(201).and()
+        CourierApi.createCourier(COURIER)
+                .then().statusCode(SC_CREATED).and()
                 .assertThat().body("ok", equalTo(true));
+        id = CourierApi.logInCourier(COURIER).then().extract().path("id").toString();
+
     }
 
     @Test
+    @DisplayName("Create courier with correct login and password, result ok")
     public void courierLogInExpectOk() {
 
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(COURIER.getNoFirstNameJson())
-                        .when()
-                        .post("/api/v1/courier/login");
+        Response response = CourierApi.logInCourier(new Courier(LOGIN, PASSWORD));
 
         response.then().assertThat().body("id", notNullValue())
                 .and()
-                .statusCode(200);
+                .statusCode(SC_OK);
 
     }
 
     @Test
+    @DisplayName("Create courier without login, result error")
     public void courierNoLoginExpectError() {
 
-
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(COURIER.getNoLoginJson())
-                        .when()
-                        .post("/api/v1/courier/login");
+        Response response = CourierApi.logInCourier(new Courier(null, PASSWORD));
 
         response.then().body("message", equalTo("Недостаточно данных для входа"))
                 .and()
-                .statusCode(400);
+                .statusCode(SC_BAD_REQUEST);
 
     }
 
     @Test
-    //тест не проходит, так как, видимо, баг (обсуждалось в общем чате потока)
+    @DisplayName("Create courier without password, result error")
+    @Description("тест не проходит, так как, видимо, баг (обсуждалось в общем чате потока)")
     public void courierNoPasswordExpectError() {
 
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(COURIER.getNoPasswordJson())
-                        .when()
-                        .post("/api/v1/courier/login");
+        Response response = CourierApi.logInCourier(new Courier(LOGIN, null));
 
         response.then().body("message", equalTo("Недостаточно данных для входа"))
                 .and()
-                .statusCode(400);
+                .statusCode(SC_BAD_REQUEST);
 
     }
 
     @Test
+    @DisplayName("Create courier with empty password, result error")
     public void courierEmptyPasswordExpectError() {
 
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(COURIER.getEmptyPasswordJson())
-                        .when()
-                        .post("/api/v1/courier/login");
+        Response response = CourierApi.logInCourier(new Courier(LOGIN, ""));
 
         response.then().body("message", equalTo("Недостаточно данных для входа"))
                 .and()
-                .statusCode(400);
+                .statusCode(SC_BAD_REQUEST);
 
     }
 
     @Test
-    public void courierUncorrectLoginExpectError() {
+    @DisplayName("Create courier with incorrect login, result error")
+    public void courierIncorrectLoginExpectError() {
 
-
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(COURIER.getUncorrectLoginJson())
-                        .when()
-                        .post("/api/v1/courier/login");
+        Response response = CourierApi.logInCourier(new Courier(LOGIN+"11", PASSWORD));
 
         response.then().body("message", equalTo("Учетная запись не найдена"))
                 .and()
-                .statusCode(404);
+                .statusCode(SC_NOT_FOUND);
 
     }
 
     @Test
-    public void courierUncorrectPasswordExpectError() {
+    @DisplayName("Create courier with incorrect password, result error")
+    public void courierIncorrectPasswordExpectError() {
 
-        Response response =
-                given()
-                        .header("Content-type", "application/json")
-                        .and()
-                        .body(COURIER.getUncorrectPasswordJson())
-                        .when()
-                        .post("/api/v1/courier/login");
+        Response response = CourierApi.logInCourier(new Courier(LOGIN, PASSWORD+"11"));
 
         response.then().body("message", equalTo("Учетная запись не найдена"))
                 .and()
-                .statusCode(404);
+                .statusCode(SC_NOT_FOUND);
 
     }
 
-    @After
-    public void deleteUser() {
-        CourierId courierId = given().header("Content-type", "application/json")
-                .and()
-                .body(COURIER.getNoFirstNameJson())
-                .when()
-                .post("/api/v1/courier/login")
-                .body()
-                .as(CourierId.class);
+    @AfterClass
+    public static void deleteUser() {
 
-        String clientId = Integer.toString(courierId.getId());
-        String deleteBody = "{\"id\": \"" + clientId + "\"}";
-
-        given().header("Content-type", "application/json")
-                .and()
-                .body(deleteBody)
-                .delete("/api/v1/courier/" + clientId)
-
-                .then().statusCode(200);
+        CourierApi.deleteCourier(id);
 
     }
 

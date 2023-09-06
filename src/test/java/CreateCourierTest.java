@@ -1,90 +1,76 @@
+import courier.Courier;
+import courier.CourierApi;
+import io.qameta.allure.junit4.DisplayName;
 import io.restassured.RestAssured;
 import org.junit.Before;
 import org.junit.After;
 import org.junit.Test;
+import org.apache.commons.lang3.RandomStringUtils;
+import static org.apache.http.HttpStatus.*;
 
-import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class CreateCourierTest {
 
-  public static final String SCOOTER_SERVICE_URI = "https://qa-scooter.praktikum-services.ru/";
-
-  public static final Courier COURIER = new Courier("ninjaWR12389", "1234", "saske");
+    String id;
+    String login = "login"+RandomStringUtils.randomAlphabetic(5);
+    String password = "password";
+    String firstName = "firstName";
 
  @Before
   public void setUp() {
-    RestAssured.baseURI = SCOOTER_SERVICE_URI;
+     RestAssured.baseURI = BaseURI.SCOOTER_SERVICE_URI;
   }
 
   @Test
+  @DisplayName("Create courier with correct login, password and firstName, result ok")
   public void createCourierExpectOk() {
 
-    given().header("Content-type", "application/json")
-            .and()
-            .body(COURIER.getFullJson())
-            .when()
-            .post("/api/v1/courier")
-            .then().statusCode(201).and()
+     Courier courier = new Courier(login, password, firstName);
+
+     CourierApi.createCourier(courier)
+            .then().statusCode(SC_CREATED).and()
             .assertThat().body("ok", equalTo(true));
+
+      id = CourierApi.logInCourier(courier).then().extract().path("id").toString();
 
   }
 
 
   @Test
+  @DisplayName("Create courier with correct login, password and without firstname, result ok")
   public void createCourierWithoutFirstnameExpectOk() {
-    given().header("Content-type", "application/json")
-            .and()
-            .body(COURIER.getNoFirstNameJson())
-            .when()
-            .post("/api/v1/courier")
-            .then().statusCode(201).and()
+
+      Courier courier = new Courier(login, password);
+
+      CourierApi.createCourier(courier)
+            .then().statusCode(SC_CREATED).and()
             .assertThat().body("ok", equalTo(true));
+
+      id = CourierApi.logInCourier(courier).then().extract().path("id").toString();
 
   }
 
 
   @Test
+  @DisplayName("Create courier with the same login, result error")
   public void createSameCourierExpectError() {
-    given().header("Content-type", "application/json")
-            //.auth().oauth2("подставь_сюда_свой_токен")
-            .and()
-            .body(COURIER.getFullJson())
-            .when()
-            .post("/api/v1/courier")
-            .then().statusCode(201);
 
-    given().header("Content-type", "application/json")
-            //.auth().oauth2("подставь_сюда_свой_токен")
-            .and()
-            .body(COURIER.getFullJson())
-            .when()
-            .post("/api/v1/courier")
-            .then().statusCode(409).and()
+      Courier courier = new Courier(login, password);
+      CourierApi.createCourier(courier)
+              .then().statusCode(SC_CREATED);
+
+      id = CourierApi.logInCourier(courier).then().extract().path("id").toString();
+
+      CourierApi.createCourier(courier)
+            .then().statusCode(SC_CONFLICT).and()
             .assertThat().body("message", equalTo("Этот логин уже используется. Попробуйте другой."));
-  }
 
+  }
 
   @After
   public void deleteUser() {
-    CourierId courierId = given().header("Content-type", "application/json")
-            .and()
-            .body(COURIER.getNoFirstNameJson())
-            .when()
-            .post("/api/v1/courier/login")
-            .body()
-            .as(CourierId.class);
-
-    String clientId = Integer.toString(courierId.getId());
-    String deleteBody = "{\"id\": \"" + clientId + "\"}";
-
-    given().header("Content-type", "application/json")
-            .and()
-            .body(deleteBody)
-            .delete("/api/v1/courier/" + clientId)
-
-            .then().statusCode(200);
-
+    CourierApi.deleteCourier(id);
   }
 
 }

@@ -1,29 +1,27 @@
+import io.qameta.allure.junit4.DisplayName;
 import io.restassured.RestAssured;
+import order.OrderApi;
 import org.junit.Before;
 import org.junit.Test;
-import static io.restassured.RestAssured.given;
+
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.apache.http.HttpStatus.*;
 
 
 
 public class ListOfOrdersTest {
 
-    public static final String SCOOTER_SERVICE_URI = "https://qa-scooter.praktikum-services.ru/";
-
     @Before
     public void setUp() {
-        RestAssured.baseURI = SCOOTER_SERVICE_URI;
+        RestAssured.baseURI = BaseURI.SCOOTER_SERVICE_URI;
     }
 
-
     @Test
+    @DisplayName("Check that list of orders is not empty")
     public void listOfOrdersExpectNotEmpty() {
 
-        given().header("Content-type", "application/json")
-                .and()
-                .when()
-                .get("/api/v1/orders")
-                .then().statusCode(200).and()
+        OrderApi.getOrderList()
+                .then().statusCode(SC_OK).and()
                 .assertThat().body("orders",notNullValue());
 
     }
